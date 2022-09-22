@@ -60,16 +60,14 @@ class CSV_Loader(LogsLoader):
                 line_number = 0
                 fields_list: list = list()
                 while line_text:
-                    line_text = file.readline()
-                    dissection = re.split('\s\s+', line_text)
-                    if len(dissection) < 2:     #There are specific cases in which there is only one space between the first and second field
-                        aux_list = line_text.split(' ')
-                        self.field_1.append(aux_list[0])
-                        del aux_list[0]
-                        fields_list = aux_list
-                    else:
-                        fields_list = dissection[1].split(' ')
-                        self.field_1.append(dissection[0])
+                    fields_list = line_text.split(' ')
+                    if len(fields_list) < 10:       #This is to skip blank lines of the file
+                        line_text = file.readline()
+                        continue
+                    self.field_1.append(fields_list[0])
+                    del fields_list[0]
+                    while fields_list[0] == '':
+                        del fields_list[0]          #Remove spaces between first and second field
 
                     self.field_2.append(fields_list[0])
                     self.field_3.append(fields_list[1])
@@ -82,6 +80,8 @@ class CSV_Loader(LogsLoader):
                     self.field_10.append(fields_list[8])
 
                     line_number += 1
+                    line_text = file.readline()
+
         except Exception as e:
             print("Error: %s", str(e))
 
