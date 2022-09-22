@@ -1,7 +1,8 @@
 from argparse import ArgumentParser
 from abc import ABC, abstractmethod
 from collections import Counter
-import re, json
+import json
+import sys
 import pdb
 
 
@@ -19,11 +20,25 @@ class Json_output_Loader(OutputLoader):
     def __init__(self, output_path, operation):
         OutputLoader.__init__(self, output_path)
 
-        data_output_dict: dict = dict()
-        data_output_dict[operation.name] = operation.data_output
-        with open(self.get_output(), 'w') as json_file:
-            json.dump(data_output_dict, json_file)
-
+        try:
+            data_output_dict: dict = dict()
+            data_output_dict[operation.name] = operation.data_output
+            with open(self.get_output(), 'w') as json_file:
+                json.dump(data_output_dict, json_file)
+        except OSError as err:
+            print("OS Error: {0}".format(err))
+            print("Provide a correct output file")
+            sys.exit(1)
+        except ValueError:
+            print("Could not convert data")
+            sys.exit(1)
+        except TypeError:
+            print("Unable to serialize the object")
+            sys.exit(1)
+        except Exception as e:
+            print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
 # Base class. It will store common input for any existing loader (other formats)
 class LogsLoader(object):
@@ -82,10 +97,19 @@ class CSV_Loader(LogsLoader):
                     line_number += 1
                     line_text = file.readline()
 
+        except OSError as err:
+            print("OS Error: {0}".format(err))
+            print("Provide a correct input file. It must be placed in the same folder as the script")
+            sys.exit(1)
+        except ValueError:
+            print("Could not convert data")
+            sys.exit(1)
         except Exception as e:
             print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
-        print("Number of logs: ", line_number)
+        print("LOG: Number of lines in input file: ", line_number)
 
 
 #  The Operation interface declares a method action() for building the inherited classes.
@@ -103,9 +127,15 @@ class MostFrequentIP(Operation):
         self.name = self.__class__.__name__     #Will be used as the key of the returned json
 
     def action(self):
-        counter = Counter(self.LogsLoader.field_3)
-        ordered_elements = counter.most_common()
-        first = ordered_elements[0]
+        try:
+            counter = Counter(self.LogsLoader.field_3)
+            ordered_elements = counter.most_common()
+            first = ordered_elements[0]
+            
+        except Exception as e:
+            print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
         return str(first[0])
 
@@ -117,9 +147,14 @@ class LeastFrequentIP(Operation):
         self.name = self.__class__.__name__  # Will be used as the key of the returned json
 
     def action(self):
-        counter = Counter(self.LogsLoader.field_3)
-        ordered_elements = counter.most_common()
-        last = ordered_elements[-1]
+        try:
+            counter = Counter(self.LogsLoader.field_3)
+            ordered_elements = counter.most_common()
+            last = ordered_elements[-1]
+        except Exception as e:
+            print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
         #There are more ip with 1 occurence. In this version we will take only one of them
         return str(last[0])
@@ -133,17 +168,22 @@ class EventsperSecond(Operation):
         self.name = self.__class__.__name__  # Will be used as the key of the returned json
 
     def action(self):
-        timestamp_sec = self.remove_decimal_part()
-        counter = Counter(timestamp_sec)
-        ordered_elements = counter.most_common()
+        try:
+            timestamp_sec = self.remove_decimal_part()
+            counter = Counter(timestamp_sec)
+            ordered_elements = counter.most_common()
 
-        number_occurences = 0
-        number_elements = 0
-        for element in ordered_elements:
-            number_occurences = number_occurences + element[1]
-            number_elements = number_elements + 1
+            number_occurences = 0
+            number_elements = 0
+            for element in ordered_elements:
+                number_occurences = number_occurences + element[1]
+                number_elements = number_elements + 1
 
-        events_per_sec = number_occurences/number_elements
+            events_per_sec = number_occurences/number_elements
+        except Exception as e:
+            print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
         return events_per_sec
 
@@ -163,13 +203,18 @@ class TotalAmountofBytes(object):
         self.name = self.__class__.__name__  # Will be used as the key of the returned json
 
     def action(self):
-        header_bytes_accumulated = 0
-        for header_bytes in self.LogsLoader.field_2:
-            header_bytes_accumulated = header_bytes_accumulated + int(header_bytes)
+        try:
+            header_bytes_accumulated = 0
+            for header_bytes in self.LogsLoader.field_2:
+                header_bytes_accumulated = header_bytes_accumulated + int(header_bytes)
 
-        body_bytes_accumulated = 0
-        for body_bytes in self.LogsLoader.field_5:
-            body_bytes_accumulated = body_bytes_accumulated + int(body_bytes)
+            body_bytes_accumulated = 0
+            for body_bytes in self.LogsLoader.field_5:
+                body_bytes_accumulated = body_bytes_accumulated + int(body_bytes)
+        except Exception as e:
+            print("Error: %s", str(e))
+            print("Exception occurred. Exiting...")
+            sys.exit(1)
 
         return header_bytes_accumulated + body_bytes_accumulated
 
@@ -205,10 +250,12 @@ def main():
         print('Input and Output arguments are mandatories. Please re-introduce them')
         return False
 
+    #------INPUT CLASS---------------------------------------------------------------------------------------------
     # The class CSV_Loader loads files with CSV format. If we want to use other input files with diferent format,
     # we should create a new class inherited from the base class LogsLoader
     input_load = CSV_Loader(input_path)
 
+    #------OPERATION CLASSES---------------------------------------------------------------------------------------
     # Operations. Operation and input classes are link throughout aggregation relationship
     if params.most_frequent is not False:
         operation = MostFrequentIP(input_load)
@@ -222,6 +269,7 @@ def main():
     elif params.total_bytes is not False:
         operation = TotalAmountofBytes(input_load)
 
+    #-----OUTPUT CLASS-----------------------------------------------------------------------------------------
     Json_output_Loader(output_path, operation)
 
 
